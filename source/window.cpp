@@ -1,0 +1,204 @@
+#include "window.h"
+
+#include <glad/gl.h>
+#include <GLFW/glfw3.h>
+#include <backends/imgui_impl_glfw.h>
+#include <backends/imgui_impl_opengl3.h>
+
+#include <iostream>
+
+namespace pokedex {
+	namespace Window {
+		bool g_initialized = false;
+		GLFWwindow* g_window = nullptr;
+		ImGuiContext* g_context = nullptr;
+
+		RenderCallback g_onRender = nullptr;
+		WindowFocusCallback g_onWindowFocus = nullptr;
+		CursorEnterCallback g_onCursorEnter = nullptr;
+		CursorPosCallback g_onCursorPos = nullptr;
+		MouseButtonCallback g_onMouseButton = nullptr;
+		ScrollCallback g_onScroll = nullptr;
+		KeyCallback g_onKey = nullptr;
+		CharCallback g_onChar = nullptr;
+
+		void setCallbacks();
+		int initDearImGui();
+
+		void preFrame();
+		void postFrame();
+	}
+}
+
+int pokedex::Window::construct(const glm::ivec2& size, const char* title) {
+	if (g_initialized)
+		return -1;
+
+	glfwSetErrorCallback([](int error, const char* description) {
+		std::cerr << "GLFW Error " << error << ": " << description << std::endl;
+		});
+
+	if (!glfwInit())
+		return -2;
+
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+
+	g_window = glfwCreateWindow(size.x, size.y, title, nullptr, nullptr);
+	if (g_window == nullptr)
+		return -3;
+
+	glfwMakeContextCurrent(g_window);
+	glfwSwapInterval(1);
+	gladLoadGL(glfwGetProcAddress);
+
+	setCallbacks();
+
+	int err = initDearImGui();
+	if (err != 0)
+		return err < 0 ? err - 3 : err;
+
+	return 0;
+}
+
+int pokedex::Window::destruct() {
+	if (!g_initialized)
+		return -1;
+
+	ImGui::SetCurrentContext(g_context);
+	ImGui_ImplOpenGL3_Shutdown();
+	ImGui_ImplGlfw_Shutdown();
+	ImGui::DestroyContext(g_context);
+
+	glfwDestroyWindow(g_window);
+
+	glfwTerminate();
+
+	return 0;
+}
+
+void pokedex::Window::frame() {
+	preFrame();
+
+	if (g_onRender)
+		g_onRender(0.0f);
+
+	ImGui::ShowDemoWindow();
+
+	postFrame();
+}
+
+void pokedex::Window::preFrame() {
+	glfwMakeContextCurrent(g_window);
+	ImGui::SetCurrentContext(g_context);
+
+	ImGui_ImplOpenGL3_NewFrame();
+	ImGui_ImplGlfw_NewFrame();
+	ImGui::NewFrame();
+
+	glClear(GL_COLOR_BUFFER_BIT);
+}
+
+void pokedex::Window::postFrame() {
+	ImGui::Render();
+
+	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
+	if (ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {
+		GLFWwindow* old = glfwGetCurrentContext();
+		ImGui::UpdatePlatformWindows();
+		ImGui::RenderPlatformWindowsDefault();
+		glfwMakeContextCurrent(old);
+	}
+
+	glfwSwapBuffers(g_window);
+}
+
+bool pokedex::Window::wantsShutdown() {
+	return glfwWindowShouldClose(g_window);
+}
+
+void pokedex::Window::requestShutdown() {
+	glfwSetWindowShouldClose(g_window, GLFW_TRUE);
+}
+
+#define CALLBACK_SETTER(name) \
+pokedex::Window::name##Callback pokedex::Window::setOn##name##Callback(name##Callback callback) { \
+	name##Callback oldCallback = g_on##name; \
+	g_on##name = callback; \
+	return oldCallback; \
+}
+
+CALLBACK_SETTER(Render);
+CALLBACK_SETTER(WindowFocus);
+CALLBACK_SETTER(CursorEnter);
+CALLBACK_SETTER(CursorPos);
+CALLBACK_SETTER(MouseButton);
+CALLBACK_SETTER(Scroll);
+CALLBACK_SETTER(Key);
+CALLBACK_SETTER(Char);
+
+#undef CALLBACK_SETTER
+
+void pokedex::Window::setCallbacks() {
+#define CALLBACK_PASSTHROUGH(name) \
+	glfwSet##name##Callback(g_window, [](GLFWwindow* window, auto... args) { \
+	ImGuiContext* old = ImGui::GetCurrentContext(); \
+	ImGui::SetCurrentContext(g_context); \
+	ImGui_ImplGlfw_##name##Callback(window, args...); \
+ \
+	if (g_on##name) \
+		g_on##name(args...); \
+ \
+	ImGui::SetCurrentContext(old); \
+})
+
+	CALLBACK_PASSTHROUGH(WindowFocus);
+	CALLBACK_PASSTHROUGH(CursorEnter);
+	CALLBACK_PASSTHROUGH(CursorPos);
+	CALLBACK_PASSTHROUGH(MouseButton);
+	CALLBACK_PASSTHROUGH(Scroll);
+	CALLBACK_PASSTHROUGH(Key);
+	CALLBACK_PASSTHROUGH(Char);
+	glfwSetMonitorCallback(nullptr);
+
+#undef CALLBACK_PASSTHROUGH
+
+	glfwSetKeyCallback(g_window, [](GLFWwindow* window, auto... args) {
+		ImGuiContext* old = ImGui::GetCurrentContext();
+		ImGui::SetCurrentContext(g_context);
+		ImGui_ImplGlfw_KeyCallback(window, args...);
+		if (g_onKey)
+			g_onKey(args...);
+		ImGui::SetCurrentContext(old);
+	});
+}
+
+int pokedex::Window::initDearImGui() {
+	if (!IMGUI_CHECKVERSION())
+		return -1;
+
+	g_context = ImGui::CreateContext();
+	ImGui::SetCurrentContext(g_context);
+	ImGuiIO& io = ImGui::GetIO();
+	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+	io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+	io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
+	//io.ConfigViewportsNoTaskBarIcon = true;
+
+	ImGui::StyleColorsDark();
+
+	// When viewports are enabled we tweak WindowRounding/WindowBg so platform windows can look identical to regular ones.
+	ImGuiStyle& style = ImGui::GetStyle();
+	if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {
+		style.WindowRounding = 0.0f;
+		style.Colors[ImGuiCol_WindowBg].w = 1.0f;
+	}
+
+	if (!ImGui_ImplGlfw_InitForOpenGL(g_window, false))
+		return -2;
+	if (!ImGui_ImplOpenGL3_Init("#version 430"))
+		return -3;
+
+	return 0;
+}
