@@ -28,8 +28,10 @@ int main() {
 
 			CURLcode res = curl_easy_perform(curl);
 
-			if (res == CURLE_OK)
-				std::cout << "Got data:" << std::endl << result << std::endl;
+			if (res == CURLE_OK) {
+				nlohmann::json pokeJson = nlohmann::json::parse(result);
+				std::cout << "Got data:" << std::endl << pokeJson.dump(1, '\t') << std::endl;
+			}
 			else
 				std::cerr << "something went wrong: " << curl_easy_strerror(res) << std::endl;
 

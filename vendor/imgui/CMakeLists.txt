@@ -16,5 +16,3 @@ add_library(Dear_ImGui STATIC
 # link DearImGui library
 target_include_directories(Dear_ImGui PUBLIC imgui imgui/misc/cpp imgui/backends)
 target_link_libraries(Dear_ImGui glfw)
-
-
