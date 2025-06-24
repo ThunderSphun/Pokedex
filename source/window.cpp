@@ -155,7 +155,7 @@ void pokedex::Window::postFrame() {
 }
 
 bool pokedex::Window::wantsShutdown() {
-	return g_initialized || glfwWindowShouldClose(g_window);
+	return g_initialized && glfwWindowShouldClose(g_window);
 }
 
 void pokedex::Window::requestShutdown() {
