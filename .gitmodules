@@ -1,0 +1,20 @@
+[submodule "glfw"]
+	path = vendor/glfw/glfw
+	url = https://github.com/glfw/glfw.git
+[submodule "glad"]
+	path = vendor/glad/glad
+	url = https://github.com/Dav1dde/glad.git
+	branch = glad2
+[submodule "glm"]
+	path = vendor/glm
+	url = https://github.com/g-truc/glm.git
+[submodule "imgui"]
+	path = vendor/imgui/imgui
+	url = https://github.com/ocornut/imgui.git
+	branch = docking
+[submodule "curl"]
+	path = vendor/curl/curl
+	url = https://github.com/curl/curl.git
+[submodule "json"]
+	path = vendor/json
+	url = https://github.com/nlohmann/json.git

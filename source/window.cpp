@@ -2,6 +2,7 @@
 
 #include <glad/gl.h>
 #include <GLFW/glfw3.h>
+#include <imgui.h>
 #include <backends/imgui_impl_glfw.h>
 #include <backends/imgui_impl_opengl3.h>
 
@@ -9,11 +10,15 @@
 
 namespace pokedex {
 	namespace Window {
+		void clearGlobals();
+
 		bool g_initialized = false;
 		GLFWwindow* g_window = nullptr;
 		ImGuiContext* g_context = nullptr;
-
-		RenderCallback g_onRender = nullptr;
+		uint64_t g_frameCount = 0;
+		double g_prevTime = 0;
+		
+		FrameRenderCallback g_onFrameRender = nullptr;
 		WindowFocusCallback g_onWindowFocus = nullptr;
 		CursorEnterCallback g_onCursorEnter = nullptr;
 		CursorPosCallback g_onCursorPos = nullptr;
@@ -30,13 +35,32 @@ namespace pokedex {
 	}
 }
 
+void pokedex::Window::clearGlobals() {
+	g_initialized = false;
+	g_window = nullptr;
+	g_context = nullptr;
+	g_frameCount = 0;
+	g_prevTime = 0;
+
+	g_onFrameRender = nullptr;
+	g_onWindowFocus = nullptr;
+	g_onCursorEnter = nullptr;
+	g_onCursorPos = nullptr;
+	g_onMouseButton = nullptr;
+	g_onScroll = nullptr;
+	g_onKey = nullptr;
+	g_onChar = nullptr;
+}
+
 int pokedex::Window::construct(const glm::ivec2& size, const char* title) {
 	if (g_initialized)
 		return -1;
 
+	clearGlobals();
+
 	glfwSetErrorCallback([](int error, const char* description) {
 		std::cerr << "GLFW Error " << error << ": " << description << std::endl;
-		});
+	});
 
 	if (!glfwInit())
 		return -2;
@@ -45,8 +69,11 @@ int pokedex::Window::construct(const glm::ivec2& size, const char* title) {
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 
 	g_window = glfwCreateWindow(size.x, size.y, title, nullptr, nullptr);
-	if (g_window == nullptr)
+	if (g_window == nullptr) {
+		clearGlobals();
+		glfwTerminate();
 		return -3;
+	}
 
 	glfwMakeContextCurrent(g_window);
 	glfwSwapInterval(1);
@@ -55,8 +82,14 @@ int pokedex::Window::construct(const glm::ivec2& size, const char* title) {
 	setCallbacks();
 
 	int err = initDearImGui();
-	if (err != 0)
+	if (err != 0) {
+		glfwDestroyWindow(g_window);
+		clearGlobals();
+		glfwTerminate();
 		return err < 0 ? err - 3 : err;
+	}
+
+	g_initialized = true;
 
 	return 0;
 }
@@ -78,10 +111,17 @@ int pokedex::Window::destruct() {
 }
 
 void pokedex::Window::frame() {
+	if (!g_initialized)
+		return;
+
 	preFrame();
 
-	if (g_onRender)
-		g_onRender(0.0f);
+	double time = glfwGetTime();
+
+	if (g_onFrameRender)
+		g_onFrameRender(time - g_prevTime, g_frameCount++);
+
+	g_prevTime = time;
 
 	ImGui::ShowDemoWindow();
 
@@ -115,21 +155,24 @@ void pokedex::Window::postFrame() {
 }
 
 bool pokedex::Window::wantsShutdown() {
-	return glfwWindowShouldClose(g_window);
+	return g_initialized || glfwWindowShouldClose(g_window);
 }
 
 void pokedex::Window::requestShutdown() {
-	glfwSetWindowShouldClose(g_window, GLFW_TRUE);
+	if (g_initialized)
+		glfwSetWindowShouldClose(g_window, GLFW_TRUE);
 }
 
 #define CALLBACK_SETTER(name) \
 pokedex::Window::name##Callback pokedex::Window::setOn##name##Callback(name##Callback callback) { \
+	if (!g_initialized) \
+		return nullptr; \
 	name##Callback oldCallback = g_on##name; \
 	g_on##name = callback; \
 	return oldCallback; \
 }
 
-CALLBACK_SETTER(Render);
+CALLBACK_SETTER(FrameRender);
 CALLBACK_SETTER(WindowFocus);
 CALLBACK_SETTER(CursorEnter);
 CALLBACK_SETTER(CursorPos);
@@ -163,15 +206,6 @@ void pokedex::Window::setCallbacks() {
 	glfwSetMonitorCallback(nullptr);
 
 #undef CALLBACK_PASSTHROUGH
-
-	glfwSetKeyCallback(g_window, [](GLFWwindow* window, auto... args) {
-		ImGuiContext* old = ImGui::GetCurrentContext();
-		ImGui::SetCurrentContext(g_context);
-		ImGui_ImplGlfw_KeyCallback(window, args...);
-		if (g_onKey)
-			g_onKey(args...);
-		ImGui::SetCurrentContext(old);
-	});
 }
 
 int pokedex::Window::initDearImGui() {
@@ -195,10 +229,15 @@ int pokedex::Window::initDearImGui() {
 		style.Colors[ImGuiCol_WindowBg].w = 1.0f;
 	}
 
-	if (!ImGui_ImplGlfw_InitForOpenGL(g_window, false))
+	if (!ImGui_ImplGlfw_InitForOpenGL(g_window, false)) {
+		ImGui::DestroyContext();
 		return -2;
-	if (!ImGui_ImplOpenGL3_Init("#version 430"))
+	}
+	if (!ImGui_ImplOpenGL3_Init("#version 430")) {
+		ImGui_ImplGlfw_Shutdown();
+		ImGui::DestroyContext();
 		return -3;
+	}
 
 	return 0;
 }
