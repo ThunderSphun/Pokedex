@@ -17,7 +17,7 @@ namespace pokedex {
 		ImGuiContext* g_context = nullptr;
 		uint64_t g_frameCount = 0;
 		double g_prevTime = 0;
-		
+
 		FrameRenderCallback g_onFrameRender = nullptr;
 		WindowFocusCallback g_onWindowFocus = nullptr;
 		CursorEnterCallback g_onCursorEnter = nullptr;
@@ -27,11 +27,11 @@ namespace pokedex {
 		KeyCallback g_onKey = nullptr;
 		CharCallback g_onChar = nullptr;
 
-		void setCallbacks();
-		int initDearImGui();
-
 		void preFrame();
 		void postFrame();
+
+		void setCallbacks();
+		int initDearImGui();
 	}
 }
 
@@ -155,7 +155,7 @@ void pokedex::Window::postFrame() {
 }
 
 bool pokedex::Window::wantsShutdown() {
-	return g_initialized || glfwWindowShouldClose(g_window);
+	return g_initialized && glfwWindowShouldClose(g_window);
 }
 
 void pokedex::Window::requestShutdown() {
