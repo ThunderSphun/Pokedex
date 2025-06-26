@@ -1,11 +1,11 @@
 #include "window.h"
 #include "fetch.h"
 
+#include <curl/curl.h>
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <iostream>
-#include <curl/curl.h>
 #include <nlohmann/json.hpp>
 #include <imgui.h>
 

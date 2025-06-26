@@ -18,9 +18,8 @@ set(BUILD_LIBCURL_DOCS OFF CACHE BOOL "Build libcurl man pages")
 set(ENABLE_CURL_MANUAL OFF CACHE BOOL "Build the man page for curl and enable its -M/--manual option")
 
 if (WIN32)
-	set(USE_WINDOWS_SSPI ON)
-	#set(USE_SCHANNEL ON)
 	set(CURL_USE_SCHANNEL ON)
+	set(USE_WINDOWS_SSPI ON)
 endif()
 
 add_subdirectory("curl")
